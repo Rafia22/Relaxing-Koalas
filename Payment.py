@@ -1,3 +1,5 @@
+import sqlite3
+
 class Payment:
     def __init__(self):
         self.transactions = []
@@ -5,7 +7,8 @@ class Payment:
     def record_transaction(self, amount):
         if amount <= 0:
             raise ValueError("Transaction amount must be positive.")
-        self.transactions.append(amount)
-
-    def __str__(self):
-        return f"Payment: {len(self.transactions)} transactions"
+        with sqlite3.connect('restaurant.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute('INSERT INTO payments (amount) VALUES (?)', (amount,))
+            self.transactions.append(cursor.lastrowid)
+            conn.commit()

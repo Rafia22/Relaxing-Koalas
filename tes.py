@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import messagebox
 from datetime import datetime, timedelta
 from PIL import Image, ImageTk
+import sqlite3
 from Customer import Customer
 from Reservation import Reservation
 from Table import Table
@@ -19,15 +20,12 @@ class App:
         # Set window size
         self.root.geometry("800x600")
 
-        self.customers = []
-        self.reservations = []
+        self.customers = self.load_customers_from_db()
+        self.reservations = self.load_reservations_from_db()
         self.tables = [Table(i, 4) for i in range(1, 11)]
-        self.menu_items = [
-            MenuItem(1, "Pizza", 10.0),
-            MenuItem(2, "Burger", 8.0),
-            MenuItem(3, "Salad", 7.0)
-        ]
+        self.menu_items = self.load_menu_items_from_db()
         self.kitchen = Kitchen()
+        self.kitchen.orders = self.kitchen.load_orders_from_db()
         self.payments = Payment()
 
         # Create a content frame for form fields
@@ -68,6 +66,41 @@ class App:
         for widget in self.content_frame.winfo_children():
             widget.destroy()
 
+    def load_customers_from_db(self):
+        customers = []
+        with sqlite3.connect('restaurant.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT id, name, contact FROM customers')
+            for row in cursor.fetchall():
+                customer = Customer(row[1], row[2])
+                customer.id = row[0]
+                customers.append(customer)
+        return customers
+
+    def load_reservations_from_db(self):
+        reservations = []
+        with sqlite3.connect('restaurant.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT id, customer_id, date, time, guests, table_id FROM reservations')
+            for row in cursor.fetchall():
+                reservation = Reservation(row[1], row[2], row[3], row[4], row[5])
+                reservation.id = row[0]
+                reservations.append(reservation)
+        return reservations
+
+    def load_menu_items_from_db(self):
+        menu_items = []
+        with sqlite3.connect('restaurant.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT id, name, price FROM menu_items')
+            for row in cursor.fetchall():
+                menu_item = MenuItem(row[1], row[2])
+                menu_item.id = row[0]
+                menu_items.append(menu_item)
+        return menu_items
+    
+    
+
     def show_reservation_form(self):
         self.clear_frame()
 
@@ -103,7 +136,6 @@ class App:
 
         # Submit Button
         tk.Button(self.content_frame, text="Make Reservation", command=self.make_reservation).grid(row=7, column=0, columnspan=2, pady=10)
-
 
     def make_reservation(self):
         name = self.customer_name_entry.get()
@@ -141,15 +173,14 @@ class App:
             reservation = Reservation(customer.id, date, time, guests, table_id)
             reservation.save_to_db()
             
-            self.customers.append(customer)
-            self.reservations.append(reservation)
+            self.customers = self.load_customers_from_db()  # Refresh customers data
+            self.reservations = self.load_reservations_from_db()  # Refresh reservations data
             
             self.tables[table_id - 1].reserve()
             messagebox.showinfo("Success", f"Reservation confirmed for {name}")
             self.clear_frame()
         except ValueError as e:
             messagebox.showerror("Input Error", str(e))
-
 
     def check_table_availability(self, table_id, date, time):
         for reservation in self.reservations:
@@ -160,19 +191,39 @@ class App:
     def show_order_form(self):
         self.clear_frame()
 
-        # Display Menu Items
+        # Display Menu Items in a scrollable frame
         menu_frame = tk.Frame(self.content_frame)
         menu_frame.grid(row=0, column=0, columnspan=2, padx=10, pady=10, sticky=tk.W)
 
-        tk.Label(menu_frame, text="Available Menu Items:").pack(anchor=tk.W)
+        # Create a canvas and a scrollbar
+        canvas = tk.Canvas(menu_frame, height=150, width=400)
+        scrollbar = tk.Scrollbar(menu_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas)
 
-        for item in self.menu_items:
-            tk.Label(menu_frame, text=f"{item.name} - ${item.price:.2f}").pack(anchor=tk.W)
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(
+                scrollregion=canvas.bbox("all")
+            )
+        )
 
-        # Customer Name
-        tk.Label(self.content_frame, text="Customer Name").grid(row=1, column=0, sticky=tk.W, padx=10, pady=5)
-        self.order_customer_name_entry = tk.Entry(self.content_frame)
-        self.order_customer_name_entry.grid(row=1, column=1, padx=10, pady=5)
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.grid(row=0, column=0, sticky="nsew")
+        scrollbar.grid(row=0, column=1, sticky="ns")
+
+        tk.Label(scrollable_frame, text="Available Menu Items:", font=("Helvetica", 12, "bold")).grid(row=0, column=0, columnspan=2, pady=5)
+
+        for i, item in enumerate(self.menu_items):
+            row = i // 2 + 1
+            col = i % 2
+            tk.Label(scrollable_frame, text=f"{item.name} - ${item.price:.2f}").grid(row=row, column=col, padx=10, pady=5)
+
+        # Table Number
+        tk.Label(self.content_frame, text="Table Number").grid(row=1, column=0, sticky=tk.W, padx=10, pady=5)
+        self.order_table_number_entry = tk.Entry(self.content_frame)
+        self.order_table_number_entry.grid(row=1, column=1, padx=10, pady=5)
 
         # Menu Items Entry
         tk.Label(self.content_frame, text="Menu Items (comma-separated)").grid(row=2, column=0, sticky=tk.W, padx=10, pady=5)
@@ -183,18 +234,23 @@ class App:
         tk.Button(self.content_frame, text="Submit Order", command=self.place_order).grid(row=3, column=0, columnspan=2, pady=10)
 
 
-
     def place_order(self):
-        customer_name = self.order_customer_name_entry.get()
-        item_names = self.menu_items_entry.get().split(",")
-        customer = next((c for c in self.customers if c.name == customer_name), None)
-        
-        if customer:
-            if not customer.reservations:
-                messagebox.showerror("Input Error", "Customer has no reservations.")
-                return
+        table_number = self.order_table_number_entry.get()
+        try:
+            table_number = int(table_number)
+        except ValueError:
+            messagebox.showerror("Input Error", "Table number must be an integer.")
+            return
 
+        if table_number > len(self.tables) or table_number < 1:
+            messagebox.showerror("Input Error", "Table number does not exist.")
+            return
+
+        customer = next((c for c in self.customers if any(res.table_id == table_number for res in self.reservations if res.customer_id == c.id)), None)
+
+        if customer:
             order_items = []
+            item_names = self.menu_items_entry.get().split(",")
             for name in item_names:
                 item = next((item for item in self.menu_items if item.name.strip().lower() == name.strip().lower()), None)
                 if item:
@@ -204,73 +260,118 @@ class App:
                     return
 
             try:
-                order = Order(len(customer.orders) + 1, customer, customer.reservations[-1].table_id, order_items)
-                customer.place_order(order)
+                order = Order(customer.id, table_number, order_items)
+                order.save_to_db()
                 self.kitchen.receive_order(order)
-                messagebox.showinfo("Success", f"Order placed for {customer.name}")
+                self.customers = self.load_customers_from_db()  # Refresh customers data
+                self.reservations = self.load_reservations_from_db()  # Refresh reservations data
+                messagebox.showinfo("Success", f"Order placed for Table {table_number}")
                 self.clear_frame()
             except ValueError as e:
                 messagebox.showerror("Input Error", str(e))
         else:
-            messagebox.showerror("Input Error", "Customer not found.")
+            messagebox.showerror("Input Error", "Customer not found for the given table number.")
+
 
     def view_kitchen_orders(self):
         self.clear_frame()
 
-        tk.Label(self.content_frame, text="Kitchen Orders").grid(row=1, column=0, sticky=tk.W)
+        tk.Label(self.content_frame, text="Kitchen Orders").grid(row=0, column=0, sticky=tk.W)
+
         for i, order in enumerate(self.kitchen.orders):
-            order_info = f"Customer: {order.customer.name}, Status: {order.status}\nItems:"
+            customer_name = next((c.name for c in self.customers if c.id == order.customer_id), "Unknown Customer")
+            order_info = f"Customer: {customer_name}, Status: {order.status}\nItems:"
             for item in order.items:
                 order_info += f"\n - {item.name}: ${item.price}"
             order_info += f"\nTotal Cost: ${order.total_cost}\n{'-'*20}"
-            tk.Label(self.content_frame, text=order_info).grid(row=i + 2, column=0, sticky=tk.W)
+
+            tk.Label(self.content_frame, text=order_info).grid(row=i + 1, column=0, sticky=tk.W)
+
+            if order.status == 'Paid':
+                complete_button = tk.Button(self.content_frame, text="Complete", command=lambda o=order: self.complete_order(o))
+                complete_button.grid(row=i + 1, column=1, padx=10, pady=5)
+
+    def complete_order(self, order):
+        self.kitchen.complete_order(order)
+        # This commented line removes the view but stays in the database.
+        # self.kitchen.orders = [o for o in self.kitchen.orders if o.id != order.id]  # Remove completed order
+        self.view_kitchen_orders()  # Refresh the view
 
     def show_invoice_form(self):
         self.clear_frame()
 
-        tk.Label(self.content_frame, text="Customer Name").grid(row=1, column=0, sticky=tk.W)
-        self.invoice_customer_name_entry = tk.Entry(self.content_frame)
-        self.invoice_customer_name_entry.grid(row=1, column=1)
+        tk.Label(self.content_frame, text="Table Number").grid(row=1, column=0, sticky=tk.W)
+        self.invoice_table_number_entry = tk.Entry(self.content_frame)
+        self.invoice_table_number_entry.grid(row=1, column=1)
 
         tk.Button(self.content_frame, text="Generate Invoice", command=self.generate_invoice).grid(row=2, column=0, columnspan=2, pady=10)
 
+
     def generate_invoice(self):
-        customer_name = self.invoice_customer_name_entry.get()
-        customer = next((c for c in self.customers if c.name == customer_name), None)
-        
+        table_number = self.invoice_table_number_entry.get()
+        try:
+            table_number = int(table_number)
+        except ValueError:
+            messagebox.showerror("Input Error", "Table number must be an integer.")
+            return
+
+        if table_number > len(self.tables) or table_number < 1:
+            messagebox.showerror("Input Error", "Table number does not exist.")
+            return
+
+        customer = next((c for c in self.customers if any(res.table_id == table_number for res in self.reservations if res.customer_id == c.id)), None)
+
         if customer:
-            unpaid_orders = [order for order in customer.orders if order.status != 'Paid']
+            unpaid_orders = [order for order in self.kitchen.orders if order.table_id == table_number and order.status != 'Paid']
             if unpaid_orders:
-                invoice = Invoice(unpaid_orders)
+                invoice = Invoice([order.id for order in unpaid_orders])
+                invoice.save_to_db()
                 messagebox.showinfo("Invoice", str(invoice))
             else:
-                messagebox.showinfo("Invoice", f"All orders for {customer.name} are already paid.")
+                messagebox.showinfo("Invoice", f"All orders for Table {table_number} are already paid.")
         else:
-            messagebox.showerror("Input Error", "Customer not found.")
+            messagebox.showerror("Input Error", "Customer not found for the given table number.")
+
 
     def show_payment_form(self):
         self.clear_frame()
 
-        tk.Label(self.content_frame, text="Customer Name").grid(row=1, column=0, sticky=tk.W)
-        self.payment_customer_name_entry = tk.Entry(self.content_frame)
-        self.payment_customer_name_entry.grid(row=1, column=1)
+        tk.Label(self.content_frame, text="Table Number").grid(row=1, column=0, sticky=tk.W)
+        self.payment_table_number_entry = tk.Entry(self.content_frame)
+        self.payment_table_number_entry.grid(row=1, column=1)
 
         tk.Button(self.content_frame, text="Process Payment", command=self.process_payment).grid(row=2, column=0, columnspan=2, pady=10)
 
+
     def process_payment(self):
-        customer_name = self.payment_customer_name_entry.get()
-        customer = next((c for c in self.customers if c.name == customer_name), None)
-        
+        table_number = self.payment_table_number_entry.get()
+        try:
+            table_number = int(table_number)
+        except ValueError:
+            messagebox.showerror("Input Error", "Table number must be an integer.")
+            return
+
+        if table_number > len(self.tables) or table_number < 1:
+            messagebox.showerror("Input Error", "Table number does not exist.")
+            return
+
+        customer = next((c for c in self.customers if any(res.table_id == table_number for res in self.reservations if res.customer_id == c.id)), None)
+
         if customer:
-            unpaid_orders = [order for order in customer.orders if order.status != 'Paid']
+            unpaid_orders = [order for order in self.kitchen.orders if order.table_id == table_number and order.status != 'Paid']
             if unpaid_orders:
-                invoice = Invoice(unpaid_orders)
-                invoice.process_payment(self.payments)
-                messagebox.showinfo("Success", f"Payment processed for {customer.name}.")
+                invoice = Invoice([order.id for order in unpaid_orders])
+                invoice.process_payment()
+                self.customers = self.load_customers_from_db()  # Refresh customers data
+                self.reservations = self.load_reservations_from_db()  # Refresh reservations data
+                self.kitchen.orders = self.kitchen.load_orders_from_db()
+                messagebox.showinfo("Success", f"Payment processed for Table {table_number}.")
             else:
-                messagebox.showinfo("Success", f"All orders for {customer.name} are already paid.")
+                messagebox.showinfo("Success", f"All orders for Table {table_number} are already paid.")
         else:
-            messagebox.showerror("Input Error", "Customer not found.")
+            messagebox.showerror("Input Error", "Customer not found for the given table number.")
+
+
 
 if __name__ == "__main__":
     root = tk.Tk()

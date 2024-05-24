@@ -1,59 +1,93 @@
 import sqlite3
 
 def create_tables():
-    conn = sqlite3.connect('restaurant.db')
-    cursor = conn.cursor()
+    with sqlite3.connect('restaurant.db') as conn:
+        cursor = conn.cursor()
 
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS customers (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            contact TEXT NOT NULL
-        )
-    ''')
+        # Create customers table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS customers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                contact TEXT NOT NULL
+            )
+        ''')
 
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS reservations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            customer_id INTEGER,
-            date TEXT,
-            time TEXT,
-            guests INTEGER,
-            table_id INTEGER,
-            FOREIGN KEY (customer_id) REFERENCES customers (id)
-        )
-    ''')
+        # Create reservations table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS reservations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                customer_id INTEGER NOT NULL,
+                date TEXT NOT NULL,
+                time TEXT NOT NULL,
+                guests INTEGER NOT NULL,
+                table_id INTEGER NOT NULL,
+                FOREIGN KEY(customer_id) REFERENCES customers(id)
+            )
+        ''')
 
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS menu_items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            price REAL NOT NULL
-        )
-    ''')
+        # Create tables table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS tables (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                capacity INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'Available'
+            )
+        ''')
 
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS orders (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            customer_id INTEGER,
-            table_id INTEGER,
-            status TEXT,
-            FOREIGN KEY (customer_id) REFERENCES customers (id)
-        )
-    ''')
+        # Create menu_items table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS menu_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                price REAL NOT NULL
+            )
+        ''')
 
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS order_items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            order_id INTEGER,
-            menu_item_id INTEGER,
-            FOREIGN KEY (order_id) REFERENCES orders (id),
-            FOREIGN KEY (menu_item_id) REFERENCES menu_items (id)
-        )
-    ''')
+        # Create orders table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS orders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                customer_id INTEGER NOT NULL,
+                table_id INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                FOREIGN KEY(customer_id) REFERENCES customers(id),
+                FOREIGN KEY(table_id) REFERENCES tables(id)
+            )
+        ''')
 
-    conn.commit()
-    conn.close()
+        # Create order_items table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS order_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                order_id INTEGER NOT NULL,
+                menu_item_id INTEGER NOT NULL,
+                FOREIGN KEY(order_id) REFERENCES orders(id),
+                FOREIGN KEY(menu_item_id) REFERENCES menu_items(id)
+            )
+        ''')
 
-if __name__ == "__main__":
+        # Create invoices table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS invoices (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                order_id INTEGER NOT NULL,
+                amount_due REAL NOT NULL,
+                is_paid INTEGER NOT NULL DEFAULT 0,
+                FOREIGN KEY(order_id) REFERENCES orders(id)
+            )
+        ''')
+
+        # Create payments table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS payments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                amount REAL NOT NULL,
+                timestamp TEXT NOT NULL
+            )
+        ''')
+
+        print("Tables created successfully")
+
+if __name__ == '__main__':
     create_tables()

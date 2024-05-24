@@ -1,12 +1,24 @@
+import sqlite3
+
 class Order:
     VALID_STATUSES = ["Pending", "In Preparation", "Completed", "Cancelled", "Paid"]
 
-    def __init__(self, id, customer, table_id, items, status="Pending"):
-        self.id = id
-        self.customer = customer
+    def __init__(self, customer_id, table_id, items, status="Pending"):
+        self.customer_id = customer_id
         self.table_id = table_id
         self.items = self.validate_items(items)
         self.status = self.validate_status(status)
+
+    def save_to_db(self):
+        with sqlite3.connect('restaurant.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute('INSERT INTO orders (customer_id, table_id, status) VALUES (?, ?, ?)', 
+                           (self.customer_id, self.table_id, self.status))
+            self.id = cursor.lastrowid
+            for item in self.items:
+                cursor.execute('INSERT INTO order_items (order_id, menu_item_id) VALUES (?, ?)', 
+                               (self.id, item.id))
+            conn.commit()
 
     def validate_items(self, items):
         if not items:
@@ -20,15 +32,10 @@ class Order:
 
     def update_status(self, status):
         self.status = self.validate_status(status)
-
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "customer": self.customer.name,
-            "table_id": self.table_id,
-            "items": self.items,
-            "status": self.status
-        }
+        with sqlite3.connect('restaurant.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute('UPDATE orders SET status = ? WHERE id = ?', (self.status, self.id))
+            conn.commit()
 
     @property
     def total_cost(self):

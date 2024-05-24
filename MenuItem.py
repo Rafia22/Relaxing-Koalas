@@ -1,22 +1,14 @@
+import sqlite3
+
 class MenuItem:
-    def __init__(self, id, name, price):
-        self.id = id
-        self.name = self.validate_name(name)
-        self.price = self.validate_price(price)
+    def __init__(self, name, price):
+        self.name = name
+        self.price = price
 
-    def validate_name(self, name):
-        if not name:
-            raise ValueError("Item name cannot be empty.")
-        return name
-
-    def validate_price(self, price):
-        if price < 0:
-            raise ValueError("Price cannot be negative.")
-        return price
-
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "name": self.name,
-            "price": self.price
-        }
+    def save_to_db(self):
+        with sqlite3.connect('restaurant.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute('INSERT INTO menu_items (name, price) VALUES (?, ?)', 
+                           (self.name, self.price))
+            self.id = cursor.lastrowid
+            conn.commit()
