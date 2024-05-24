@@ -1,30 +1,21 @@
+import sqlite3
 from datetime import datetime, timedelta
 
 class Reservation:
-    def __init__(self, id, customer_name, contact, date, time, guests, table_id):
-        self.id = id
-        self.customer_name = self.validate_name(customer_name)
-        self.contact = self.validate_contact(contact)
+    def __init__(self, customer_id, date, time, guests, table_id):
+        self.customer_id = customer_id
         self.date = self.validate_date(date)
         self.time = self.validate_time(time)
         self.guests = self.validate_guests(guests)
         self.table_id = table_id
 
-    @staticmethod
-    def validate_name(name):
-        if not name:
-            raise ValueError("Customer name cannot be empty.")
-        return name
-
-    @staticmethod
-    def validate_contact(contact):
-        if not contact.startswith('04'):
-            raise ValueError("Contact must be a 10-digit phone number starting with '04'.")
-        if len(contact) != 10:
-            raise ValueError("Contact must be a 10-digit phone number.")
-        if not contact.isdigit():
-            raise ValueError("Contact must contain only digits.")
-        return contact
+    def save_to_db(self):
+        with sqlite3.connect('restaurant.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute('INSERT INTO reservations (customer_id, date, time, guests, table_id) VALUES (?, ?, ?, ?, ?)', 
+                           (self.customer_id, self.date, self.time, self.guests, self.table_id))
+            self.id = cursor.lastrowid
+            conn.commit()
 
     @staticmethod
     def validate_date(date):
@@ -60,15 +51,4 @@ class Reservation:
         return guests
 
     def confirm_reservation(self):
-        print(f"Reservation confirmed for {self.customer_name} on {self.date} at {self.time}, Table ID: {self.table_id}")
-
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "customer_name": self.customer_name,
-            "contact": self.contact,
-            "date": self.date,
-            "time": self.time,
-            "guests": self.guests,
-            "table_id": self.table_id
-        }
+        print(f"Reservation confirmed for Customer ID {self.customer_id} on {self.date} at {self.time}, Table ID: {self.table_id}")
