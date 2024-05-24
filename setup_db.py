@@ -4,12 +4,24 @@ def create_tables():
     with sqlite3.connect('restaurant.db') as conn:
         cursor = conn.cursor()
 
+        # Enable foreign key support
+        cursor.execute('PRAGMA foreign_keys = ON')
+
         # Create customers table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS customers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 contact TEXT NOT NULL
+            )
+        ''')
+
+        # Create tables table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS tables (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                capacity INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'Available'
             )
         ''')
 
@@ -22,16 +34,8 @@ def create_tables():
                 time TEXT NOT NULL,
                 guests INTEGER NOT NULL,
                 table_id INTEGER NOT NULL,
-                FOREIGN KEY(customer_id) REFERENCES customers(id)
-            )
-        ''')
-
-        # Create tables table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS tables (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                capacity INTEGER NOT NULL,
-                status TEXT NOT NULL DEFAULT 'Available'
+                FOREIGN KEY(customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+                FOREIGN KEY(table_id) REFERENCES tables(id) ON DELETE CASCADE
             )
         ''')
 
@@ -51,8 +55,10 @@ def create_tables():
                 customer_id INTEGER NOT NULL,
                 table_id INTEGER NOT NULL,
                 status TEXT NOT NULL,
-                FOREIGN KEY(customer_id) REFERENCES customers(id),
-                FOREIGN KEY(table_id) REFERENCES tables(id)
+                invoice_id INTEGER,
+                FOREIGN KEY(customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+                FOREIGN KEY(table_id) REFERENCES tables(id) ON DELETE CASCADE,
+                FOREIGN KEY(invoice_id) REFERENCES invoices(id) ON DELETE SET NULL
             )
         ''')
 
@@ -62,8 +68,8 @@ def create_tables():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 order_id INTEGER NOT NULL,
                 menu_item_id INTEGER NOT NULL,
-                FOREIGN KEY(order_id) REFERENCES orders(id),
-                FOREIGN KEY(menu_item_id) REFERENCES menu_items(id)
+                FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE,
+                FOREIGN KEY(menu_item_id) REFERENCES menu_items(id) ON DELETE CASCADE
             )
         ''')
 
@@ -71,10 +77,10 @@ def create_tables():
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS invoices (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                order_id INTEGER NOT NULL,
+                table_id INTEGER NOT NULL,
                 amount_due REAL NOT NULL,
                 is_paid INTEGER NOT NULL DEFAULT 0,
-                FOREIGN KEY(order_id) REFERENCES orders(id)
+                FOREIGN KEY(table_id) REFERENCES tables(id) ON DELETE CASCADE
             )
         ''')
 
@@ -83,7 +89,9 @@ def create_tables():
             CREATE TABLE IF NOT EXISTS payments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 amount REAL NOT NULL,
-                timestamp TEXT NOT NULL
+                timestamp TEXT NOT NULL,
+                invoice_id INTEGER NOT NULL,
+                FOREIGN KEY(invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
             )
         ''')
 
