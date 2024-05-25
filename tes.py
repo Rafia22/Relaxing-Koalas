@@ -3,7 +3,6 @@ from customtkinter import CTkImage
 import sqlite3
 from tkinter import messagebox
 from PIL import Image
-import os
 from Customer import Customer
 from Reservation import Reservation
 from Table import Table
@@ -21,13 +20,13 @@ class App:
         # Set window size
         self.root.geometry("800x600")
 
-        ctk.set_appearance_mode("dark")  # Options: "light", "dark"
-        ctk.set_default_color_theme("dark-blue")  # Options: "blue", "green", "dark-blue"
+        ctk.set_appearance_mode("dark")  
+        ctk.set_default_color_theme("dark-blue")
 
-        self.customers = self.load_customers_from_db()
-        self.reservations = self.load_reservations_from_db()
+        self.customers = Customer.load_customers_from_db()
+        self.reservations = Reservation.load_reservations_from_db()
         self.tables = [Table(i, 4) for i in range(1, 11)]
-        self.menu_items = self.load_menu_items_from_db()
+        self.menu_items = MenuItem.load_menu_items_from_db()
         self.kitchen = Kitchen()
         self.kitchen.orders = self.kitchen.load_orders_from_db()
         self.payments = Payment()
@@ -56,39 +55,6 @@ class App:
         ctk.CTkButton(button_frame, image=self.kitchen_img, command=self.view_kitchen_orders, text="View Orders", compound="top").grid(row=0, column=2, padx=10, pady=5)
         ctk.CTkButton(button_frame, image=self.invoice_img, command=self.show_invoice_form, text="Generate Invoice", compound="top").grid(row=0, column=3, padx=10, pady=5)
         ctk.CTkButton(button_frame, image=self.payment_img, command=self.show_payment_form, text="Process Payment", compound="top").grid(row=0, column=4, padx=10, pady=5)
-
-    def load_customers_from_db(self):
-        customers = []
-        with sqlite3.connect('restaurant.db') as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT id, name, contact FROM customers')
-            for row in cursor.fetchall():
-                customer = Customer(row[1], row[2])
-                customer.id = row[0]
-                customers.append(customer)
-        return customers
-
-    def load_reservations_from_db(self):
-        reservations = []
-        with sqlite3.connect('restaurant.db') as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT id, customer_id, date, time, guests, table_id FROM reservations')
-            for row in cursor.fetchall():
-                reservation = Reservation(row[1], row[2], row[3], row[4], row[5])
-                reservation.id = row[0]
-                reservations.append(reservation)
-        return reservations
-
-    def load_menu_items_from_db(self):
-        menu_items = []
-        with sqlite3.connect('restaurant.db') as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT id, name, price FROM menu_items')
-            for row in cursor.fetchall():
-                menu_item = MenuItem(row[1], row[2])
-                menu_item.id = row[0]
-                menu_items.append(menu_item)
-        return menu_items
 
     def clear_frame(self):
         for widget in self.content_frame.winfo_children():
@@ -156,7 +122,7 @@ class App:
             messagebox.showerror("Input Error", "Table number does not exist.")
             return
 
-        if not self.check_table_availability(table_id, date, time):
+        if not Table.check_table_availability(table_id, date, time):
             messagebox.showerror("Input Error", "Table is already reserved for the specified date and time.")
             return
 
@@ -176,11 +142,7 @@ class App:
         except ValueError as e:
             messagebox.showerror("Input Error", str(e))
 
-    def check_table_availability(self, table_id, date, time):
-        for reservation in self.reservations:
-            if reservation.table_id == table_id and reservation.date == date and reservation.time == time:
-                return False
-        return True
+    
 
     def show_order_form(self):
         self.clear_frame()
@@ -244,8 +206,8 @@ class App:
             return
 
         # Ensure customers and reservations are properly loaded from the database
-        self.customers = self.load_customers_from_db()
-        self.reservations = self.load_reservations_from_db()
+        self.customers = Customer.load_customers_from_db()
+        self.reservations = Reservation.load_reservations_from_db()
 
         # Find customer with a reservation for the given table number
         customer = next((c for c in self.customers if any(res.table_id == table_number and res.customer_id == c.id for res in self.reservations)), None)
@@ -414,8 +376,8 @@ class App:
         if invoice_data:
             invoice = Invoice.load_from_db(invoice_data[0])
             invoice.process_payment()
-            self.customers = self.load_customers_from_db()  # Refresh customers data
-            self.reservations = self.load_reservations_from_db()  # Refresh reservations data
+            self.customers = Customer.load_customers_from_db()  # Refresh customers data
+            self.reservations = Reservation.load_reservations_from_db()  # Refresh reservations data
             self.kitchen.orders = self.kitchen.load_orders_from_db()  # Refresh kitchen orders data
             messagebox.showinfo("Success", f"Payment processed for Table {table_number}.")
         else:

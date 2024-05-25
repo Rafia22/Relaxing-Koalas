@@ -49,6 +49,18 @@ class Reservation:
         if guests <= 0 or guests > 15:
             raise ValueError("Number of guests must be between 1 and 15.")
         return guests
+    
+    @staticmethod
+    def load_reservations_from_db():
+        reservations = []
+        with sqlite3.connect('restaurant.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT id, customer_id, date, time, guests, table_id FROM reservations')
+            for row in cursor.fetchall():
+                reservation = Reservation(row[1], row[2], row[3], row[4], row[5])
+                reservation.id = row[0]
+                reservations.append(reservation)
+        return reservations
 
     def confirm_reservation(self):
         print(f"Reservation confirmed for Customer ID {self.customer_id} on {self.date} at {self.time}, Table ID: {self.table_id}")

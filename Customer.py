@@ -29,6 +29,18 @@ class Customer:
         if not contact.isdigit():
             raise ValueError("Contact must contain only digits.")
         return contact
+    
+    @staticmethod
+    def load_customers_from_db():
+        customers = []
+        with sqlite3.connect('restaurant.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT id, name, contact FROM customers')
+            for row in cursor.fetchall():
+                customer = Customer(row[1], row[2])
+                customer.id = row[0]
+                customers.append(customer)
+        return customers
 
     def make_reservation(self, reservation):
         self.reservations.append(reservation)

@@ -16,15 +16,6 @@ def create_tables():
             )
         ''')
 
-        # Create tables table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS tables (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                capacity INTEGER NOT NULL,
-                status TEXT NOT NULL DEFAULT 'Available'
-            )
-        ''')
-
         # Create reservations table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS reservations (
@@ -81,17 +72,6 @@ def create_tables():
                 amount_due REAL NOT NULL,
                 is_paid INTEGER NOT NULL DEFAULT 0,
                 FOREIGN KEY(table_id) REFERENCES tables(id) ON DELETE CASCADE
-            )
-        ''')
-
-        # Create payments table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS payments (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                amount REAL NOT NULL,
-                timestamp TEXT NOT NULL,
-                invoice_id INTEGER NOT NULL,
-                FOREIGN KEY(invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
             )
         ''')
 

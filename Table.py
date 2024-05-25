@@ -1,3 +1,5 @@
+import sqlite3
+
 class Table:
     VALID_STATUSES = ["Available", "Reserved", "Occupied"]
 
@@ -25,3 +27,11 @@ class Table:
 
     def __str__(self):
         return f"Table {self.table_id} for {self.capacity} people. Status: {self.status}"
+    
+    def check_table_availability(table_id, date, time):
+        with sqlite3.connect('restaurant.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT COUNT(*) FROM reservations WHERE table_id = ? AND date = ? AND time = ?', (table_id, date, time))
+            count = cursor.fetchone()[0]
+            return count == 0
+
