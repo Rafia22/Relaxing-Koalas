@@ -3,6 +3,7 @@ from customtkinter import CTkImage
 import sqlite3
 from tkinter import messagebox
 from PIL import Image
+import os
 from Customer import Customer
 from Reservation import Reservation
 from Table import Table
@@ -184,32 +185,53 @@ class App:
     def show_order_form(self):
         self.clear_frame()
 
-        # Display Menu Items in a scrollable frame
-        menu_frame = ctk.CTkScrollableFrame(self.content_frame, width=400, height=200)
-        menu_frame.grid(row=0, column=0, columnspan=2, padx=10, pady=10, sticky=ctk.W)
+        # Instructional Label
+        instruction_label = ctk.CTkLabel(self.content_frame, text="Click on the items you want to order", font=("Arial", 16))
+        instruction_label.grid(row=0, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
 
-        ctk.CTkLabel(menu_frame, text="Available Menu Items:").pack(anchor=ctk.W)
+        # Display Menu Items
+        self.order_items = []  # To store the selected items
+        menu_frame = ctk.CTkScrollableFrame(self.content_frame, width=500)
+        menu_frame.grid(row=1, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
 
+        row_index = 0
+        col_index = 0
         for item in self.menu_items:
-            ctk.CTkLabel(menu_frame, text=f"{item.name} - ${item.price:.2f}").pack(anchor=ctk.W)
+            item_frame = ctk.CTkFrame(menu_frame, border_width=2, corner_radius=5, width=150, height=100)
+            item_frame.grid(row=row_index, column=col_index, padx=10, pady=10)
+
+            item_button = ctk.CTkButton(item_frame, text=f"{item.name}\n${item.price:.2f}", command=lambda i=item: self.add_item_to_order(i),
+                                        fg_color="#5cb85c", hover_color="#4cae4c")
+            item_button.pack(pady=5)
+
+            col_index += 1
+            if col_index == 3:  # Change this value to adjust the number of columns
+                col_index = 0
+                row_index += 1
 
         # Table Number
-        ctk.CTkLabel(self.content_frame, text="Table Number").grid(row=1, column=0, sticky=ctk.W, padx=10, pady=5)
+        ctk.CTkLabel(self.content_frame, text="Table Number").grid(row=row_index + 1, column=0, sticky=ctk.W, padx=10, pady=5)
         self.order_table_number_entry = ctk.CTkEntry(self.content_frame)
-        self.order_table_number_entry.grid(row=1, column=1, padx=10, pady=5)
+        self.order_table_number_entry.grid(row=row_index + 1, column=1, padx=10, pady=5)
 
-        # Menu Items Entry
-        ctk.CTkLabel(self.content_frame, text="Menu Items (comma-separated)").grid(row=2, column=0, sticky=ctk.W, padx=10, pady=5)
-        self.menu_items_entry = ctk.CTkEntry(self.content_frame)
-        self.menu_items_entry.grid(row=2, column=1, padx=10, pady=5)
+        # Selected Items Display
+        ctk.CTkLabel(self.content_frame, text="Selected Items:").grid(row=row_index + 2, column=0, sticky=ctk.W, padx=10, pady=5)
+        self.selected_items_label = ctk.CTkLabel(self.content_frame, text="")
+        self.selected_items_label.grid(row=row_index + 2, column=1, padx=10, pady=5)
 
         # Submit Button
-        ctk.CTkButton(self.content_frame, text="Submit Order", command=self.place_order).grid(row=3, column=0, columnspan=2, pady=10)
+        ctk.CTkButton(self.content_frame, text="Submit Order", command=self.place_order).grid(row=row_index + 3, column=0, columnspan=2, pady=10)
 
+    def add_item_to_order(self, item):
+        self.order_items.append(item)
+        self.update_selected_items_label()
+
+    def update_selected_items_label(self):
+        selected_items_text = "\n".join([f"{item.name} - ${item.price:.2f}" for item in self.order_items])
+        self.selected_items_label.configure(text=selected_items_text)
 
     def place_order(self):
         table_number = self.order_table_number_entry.get()
-        item_names = self.menu_items_entry.get().split(",")
 
         try:
             table_number = int(table_number)
@@ -227,23 +249,18 @@ class App:
 
         # Find customer with a reservation for the given table number
         customer = next((c for c in self.customers if any(res.table_id == table_number and res.customer_id == c.id for res in self.reservations)), None)
-        
+
         if customer:
             if not any(res.table_id == table_number for res in self.reservations if res.customer_id == customer.id):
                 messagebox.showerror("Input Error", "Customer has no reservations.")
                 return
 
-            order_items = []
-            for name in item_names:
-                item = next((item for item in self.menu_items if item.name.strip().lower() == name.strip().lower()), None)
-                if item:
-                    order_items.append(item)
-                else:
-                    messagebox.showerror("Input Error", f"'{name}' is not a valid menu item.")
-                    return
+            if not self.order_items:
+                messagebox.showerror("Input Error", "No items selected.")
+                return
 
             try:
-                order = Order(customer.id, table_number, order_items)
+                order = Order(customer.id, table_number, self.order_items)
                 order.save_to_db()
                 customer.place_order(order)
                 self.kitchen.receive_order(order)
@@ -253,7 +270,6 @@ class App:
                 messagebox.showerror("Input Error", str(e))
         else:
             messagebox.showerror("Input Error", "Customer not found for the given table number.")
-
 
     def view_kitchen_orders(self):
         self.clear_frame()
@@ -273,8 +289,7 @@ class App:
         row_index = 1
         for table_id, customers in orders_by_table.items():
             table_label = f"Table {table_id}"
-            ctk.CTkLabel(self.content_frame, text=table_label).grid(row=row_index, column=0, sticky=ctk.W, padx=10, pady=5)
-            row_index += 1
+            ctk.CTkLabel(self.content_frame, text=table_label, text_color="grey").grid(row=row_index, column=0, sticky=ctk.W, padx=10, pady=5)
 
             for customer_id, orders in customers.items():
                 with sqlite3.connect('restaurant.db') as conn:
@@ -284,19 +299,27 @@ class App:
 
                 order_info = f"Customer: {customer_name}\nItems:"
                 total_cost = 0
+                status_color = "white"
                 for order in orders:
                     for item in order.items:
                         order_info += f"\n - {item.name}: ${item.price}"
                         total_cost += item.price
-                    order_info += f"\nStatus: {order.status}\n{'-'*20}"
-                order_info += f"\nTotal Cost: ${total_cost}\n{'-'*20}"
-                ctk.CTkLabel(self.content_frame, text=order_info).grid(row=row_index, column=0, sticky=ctk.W, padx=10, pady=5)
+
+                    # Set status color
+                    status_color = "orange" if order.status == "In Preparation" else "green" if order.status == "Paid" else "white"
+                    
+                order_info += f"\n{'-'*20}\nTotal Cost: ${total_cost}\n{'-'*20}"
                 
+                ctk.CTkLabel(self.content_frame, text=order_info, text_color="white").grid(row=row_index + 1, column=0, sticky=ctk.W, padx=10, pady=5)
+                
+                # Display status with color on the same line as the table label
+                ctk.CTkLabel(self.content_frame, text=f"Status: {order.status}", text_color=status_color).grid(row=row_index, column=1, sticky=ctk.W, padx=10, pady=5)
+
                 if any(order.status == "Paid" for order in orders):
                     complete_button = ctk.CTkButton(self.content_frame, text="Complete", command=lambda orders=orders: self.complete_orders(orders))
-                    complete_button.grid(row=row_index, column=1, padx=10, pady=5)
+                    complete_button.grid(row=row_index + 1, column=1, padx=10, pady=5)
 
-                row_index += 1
+                row_index += 2  # Move to the next row after the complete button
 
     def complete_orders(self, orders):
         for order in orders:
@@ -305,6 +328,7 @@ class App:
         # Refresh kitchen orders after deletion
         self.kitchen.orders = self.kitchen.load_orders_from_db()
         self.view_kitchen_orders()
+
 
 
     def show_invoice_form(self):
