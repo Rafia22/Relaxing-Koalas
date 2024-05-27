@@ -56,6 +56,9 @@ class App:
         ctk.CTkButton(button_frame, image=self.invoice_img, command=self.show_invoice_form, text="Generate Invoice", compound="top").grid(row=0, column=3, padx=10, pady=5)
         ctk.CTkButton(button_frame, image=self.payment_img, command=self.show_payment_form, text="Process Payment", compound="top").grid(row=0, column=4, padx=10, pady=5)
 
+    def exit_app(self):
+        self.root.quit()
+
     def clear_frame(self):
         for widget in self.content_frame.winfo_children():
             widget.destroy()
@@ -96,6 +99,9 @@ class App:
 
         # Submit Button
         ctk.CTkButton(self.content_frame, text="Make Reservation", command=self.make_reservation).grid(row=7, column=0, columnspan=2, pady=10)
+
+        # Exit Button
+        ctk.CTkButton(self.root, text="Exit", command=self.exit_app).grid(row=10, column=3, columnspan=2, pady=10)
 
     def make_reservation(self):
         name = self.customer_name_entry.get()
